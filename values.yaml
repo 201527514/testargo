@@ -1,0 +1,165 @@
+argo-cd:
+  dex:
+    # -- Enable dex
+    enabled: true
+
+  fullnameOverride: argocd
+
+  apiVersionOverrides:
+    ingress: networking.k8s.io/v1
+
+  configs:
+    secret:
+      createSecret: true
+      extra:
+        {}
+
+  repoServer:
+    resources:
+      requests:
+        cpu: 0.5
+        memory: 700Mi
+    autoscaling:
+      # -- Enable Horizontal Pod Autoscaler ([HPA]) for the repo server
+      enabled: true
+      # -- Minimum number of replicas for the repo server [HPA]
+      minReplicas: 1
+      # -- Maximum number of replicas for the repo server [HPA]
+      maxReplicas: 2
+      # -- Average CPU utilization percentage for the repo server [HPA]
+      targetCPUUtilizationPercentage: 60
+      # -- Average memory utilization percentage for the repo server [HPA]
+      targetMemoryUtilizationPercentage: 60
+      # -- Configures the scaling behavior of the target in both Up and Down directions.
+      # This is only available on HPA apiVersion `autoscaling/v2beta2` and newer
+      behavior:
+        {}
+        # scaleDown:
+        #  stabilizationWindowSeconds: 300
+        #  policies:
+        #   - type: Pods
+        #     value: 1
+        #     periodSeconds: 180
+        # scaleUp:
+        #   stabilizationWindowSeconds: 300
+        #   policies:
+        #   - type: Pods
+        #     value: 2
+        #     periodSeconds: 60
+
+  controller:
+    resources:
+      requests:
+        cpu: 1 
+        memory: 1700Mi
+    serviceAccount:
+      # -- Create a service account for the application controller
+      create: true
+      # -- Service account name
+      name: argocd-application-controller
+      # -- Annotations applied to created service account
+      annotations:
+        {
+          eks.amazonaws.com/role-arn: arn:aws:iam::457856459954:role/eks-argo,
+        }
+      # -- Automount API credentials for the Service Account
+      automountServiceAccountToken: true
+
+  server:
+    extraArgs:
+      - "--insecure"
+      - "--port"
+      - "7080"
+    resources:
+      requests:
+        cpu: 0.5
+        memory: 700Mi
+    serviceAccount:
+      # -- Create server service account
+      create: true
+      # -- Server service account name
+      name: argocd-server
+      # -- Annotations applied to created service account
+      annotations:
+        {
+          eks.amazonaws.com/role-arn: arn:aws:iam::457856459954:role/eks-argo,
+        }
+      # -- Automount API credentials for the Service Account
+      automountServiceAccountToken: true
+    autoscaling:
+      enabled: true
+      # -- Minimum number of replicas for the Argo CD server [HPA]
+      minReplicas: 1
+      # -- Maximum number of replicas for the Argo CD server [HPA]
+      maxReplicas: 2
+      # -- Average CPU utilization percentage for the Argo CD server [HPA]
+      targetCPUUtilizationPercentage: 60
+      # -- Average memory utilization percentage for the Argo CD server [HPA]
+      targetMemoryUtilizationPercentage: 60
+    containerPort: 7080
+    ingress:
+      enabled: true
+      ingressClassName: alb
+      hosts:
+        - test.argo.com
+      extraPaths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: argocd-server
+              port:
+                number: 80
+      annotations:
+        alb.ingress.kubernetes.io/load-balancer-name: ap-alb-argo
+        alb.ingress.kubernetes.io/group.name: ap-alb-argo
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}, {"HTTPS":443}]'
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/ssl-redirect: "443"
+        alb.ingress.kubernetes.io/security-groups: sg-sdhfj30247sdfh, sg-asdhf1236sd
+        alb.ingress.kubernetes.io/tags: Stage=DEV
+        alb.ingress.kubernetes.io/subnets: subnet-3439aebsld43df, subnet-ssfsbk445397df
+    rbacConfig:
+      policy.csv: |
+        p, role:none, *, *, */*, deny
+        p, role:devops, logs, get, */*, allow
+        p, role:admin, *, *, */*, allow
+
+        g, test-admin, role:admin
+        g, test-devops-1, role:devops
+      policy.default: role:readonly
+      scopes: "[email,groups]"
+    config:
+      accounts.admin: apiKey
+      admin.enabled: "false"
+      url: https://test.argo.com
+      dex.config: |
+        logger:
+          level: debug
+          format: json
+        connectors:
+        - type: github
+          # Required field for connector id.
+          id: github
+          # Required field for connector name.
+          name: GitHub
+          config:
+            # Required field to connect to Crowd.
+            baseURL: https://itro.koreanair.com/crowd
+            # Credentials can be string literals or pulled from the environment.
+            clientID: aabbccddeeff00112233
+            clientSecret: <generated_client_secret>
+            # Optional groups whitelist, communicated through the "groups" scope.
+            # If `groups` is omitted, all of the user's Crowd groups are returned when the groups scope is present.
+            # If `groups` is provided, this acts as a whitelist - only the user's Crowd groups that are in the configured `groups` below will go into the groups claim.
+            # Conversely, if the user is not in any of the configured `groups`, the user will not be authenticated.
+            orgs:
+            - name: test-devops-1
+            - name: test-admin
+            # Prompt for username field.
+            # Optionally set preferred_username claim.
+            # If `preferredUsernameField` is omitted or contains an invalid option, the `preferred_username` claim will be empty.
+            # If `preferredUsernameField` is set, the `preferred_username` claim will be set to the chosen Crowd user attribute value.
+            # Possible choices are: "key", "name", "email"
+            preferredUsernameField: name
+
