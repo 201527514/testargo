@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: argo-appset
+spec:
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/201527514/testargo.git
+              revision: master
+              directories:
+                - path: argo-helm-chart
+          - clusters:
+              selector:
+                matchExpressions:
+                  - key: cluster
+                    operator: In
+                    values:
+                    - prd
+        values:
+          revision: master
+  template:
+    metadata:
+      name: 'argo-cd'
+    spec:
+      project: '{{metadata.labels.stage}}'
+      source:
+        helm:
+          valueFiles:
+          - values.yaml
+        repoURL: https://github.com/201527514/testargo.git
+        targetRevision:  '{{values.revision}}'
+        path: ./
+      destination:
+        server: '{{server}}'
+        namespace: 'argo'

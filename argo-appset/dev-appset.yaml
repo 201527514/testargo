@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: dev-appset
+spec:
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/201527514/testargo.git
+              revision: master
+              directories:
+                - path: app-helm-chart/*
+          - clusters:
+              selector:
+                matchExpressions:
+                  - key: cluster
+                    operator: In
+                    values:
+                    - dev
+        values:
+          revision: master
+  template:
+    metadata:
+      name: 'dev-appset'
+    spec:
+      project: '{{metadata.labels.stage}}'
+      source:
+        helm:
+          valueFiles:
+            - values-{{metadata.labels.stage}}.yaml
+        repoURL: https://github.com/201527514/testargo.git
+        targetRevision: '{{values.revision}}'
+        path: ./
+      destination:
+        server: '{{server}}'
+        namespace: 'dev'
