@@ -1,7 +1,6 @@
 ## ARGO test template
 
-### argocd
-(https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd)
+### [argocd](https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd)
 ---
 
 1. **argo-helm-chart** : argo helm template
